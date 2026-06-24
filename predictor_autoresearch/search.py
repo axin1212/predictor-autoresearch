@@ -45,9 +45,13 @@ def run_search(
     horizons = _prediction_horizons(config)
     suffix_ids = len(horizons) > 1
     for horizon_step in horizons:
+        if time.monotonic() >= deadline:
+            break
         baseline = _baseline_candidate(config, horizon_step, suffix_ids)
         _progress(f"candidate_start id={baseline.candidate_id} holdouts={len(holdouts.intervals)} horizon={horizon_step}")
-        baseline_results = [_safe_run(runner, baseline, holdout) for holdout in holdouts.intervals]
+        baseline_results = _run_candidate_until_deadline(runner, baseline, holdouts.intervals, deadline)
+        if not baseline_results:
+            break
         reports.append(_candidate_report(baseline, baseline_results, len(holdouts.intervals)))
         write_report(config.report_path, _report_state(reports, config))
         _progress(f"candidate_end id={baseline.candidate_id}")
@@ -67,6 +71,20 @@ def run_search(
     write_report(config.report_path, final_state)
     _progress("search_end")
     return final_state
+
+
+def _run_candidate_until_deadline(
+    runner: CandidateRunner,
+    candidate: CandidateConfig,
+    holdouts: list[HoldoutInterval],
+    deadline: float,
+) -> list[HoldoutRunResult]:
+    results = []
+    for holdout in holdouts:
+        if time.monotonic() >= deadline:
+            break
+        results.append(_safe_run(runner, candidate, holdout))
+    return results
 
 
 def _initial_candidates(config: SearchConfig) -> list[CandidateConfig]:
@@ -179,6 +197,8 @@ def _run_screened_candidate(
     deadline: float,
 ) -> CandidateReport:
     _progress(f"candidate_start id={candidate.candidate_id} quick_holdout={quick_holdout.name}")
+    if time.monotonic() >= deadline:
+        return _candidate_report(candidate, [], len(holdouts.intervals))
     quick_result = _safe_run(runner, candidate, quick_holdout)
     results: list[HoldoutRunResult] = [quick_result]
     baseline_worst = next(result.rmse_improvement_pct for result in baseline_results if result.holdout_name == quick_holdout.name)
