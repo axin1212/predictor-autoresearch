@@ -85,6 +85,34 @@ def test_initial_candidates_are_future_prediction_candidates():
     ]
 
 
+def test_multi_horizon_search_runs_all_baselines_before_candidates(tmp_path):
+    calls: list[tuple[str, str]] = []
+
+    def fake_runner(config: CandidateConfig, holdout: HoldoutInterval) -> HoldoutRunResult:
+        calls.append((config.candidate_id, holdout.name))
+        return _result(config, holdout)
+
+    run_search(
+        _holdouts(),
+        SearchConfig(
+            time_budget_seconds=1,
+            report_path=tmp_path / "report.html",
+            prediction_horizons=(3, 5),
+        ),
+        fake_runner,
+    )
+
+    baseline_call_ids = [candidate_id for candidate_id, _holdout_name in calls[:6]]
+    assert baseline_call_ids == [
+        "baseline_h+3",
+        "baseline_h+3",
+        "baseline_h+3",
+        "baseline_h+5",
+        "baseline_h+5",
+        "baseline_h+5",
+    ]
+
+
 def test_low_risk_context_candidates_keep_identity_features():
     candidates = _initial_candidates(SearchConfig(time_budget_seconds=1, report_path="report.html"))
     by_id = {candidate.candidate_id: candidate for candidate in candidates}

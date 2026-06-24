@@ -44,6 +44,7 @@ def run_search(
 
     horizons = _prediction_horizons(config)
     suffix_ids = len(horizons) > 1
+    baseline_runs: list[tuple[int, CandidateConfig, list[HoldoutRunResult]]] = []
     for horizon_step in horizons:
         if time.monotonic() >= deadline:
             break
@@ -53,9 +54,13 @@ def run_search(
         if not baseline_results:
             break
         reports.append(_candidate_report(baseline, baseline_results, len(holdouts.intervals)))
+        baseline_runs.append((horizon_step, baseline, baseline_results))
         write_report(config.report_path, _report_state(reports, config))
         _progress(f"candidate_end id={baseline.candidate_id}")
 
+    for horizon_step, _baseline, baseline_results in baseline_runs:
+        if time.monotonic() >= deadline:
+            break
         worst = min(baseline_results, key=_score_for_worst_pick).holdout_name
         quick_holdout = next(holdout for holdout in holdouts.intervals if holdout.name == worst)
 
