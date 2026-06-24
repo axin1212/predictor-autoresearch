@@ -1,0 +1,6 @@
+interface:
+  display_name: "Predictor AutoResearch"
+  short_description: "Run local FDE TabPFN predictor search"
+  default_prompt: "Use $predictor-autoresearch to evaluate offline predictor fitability with FDE TabPFN."
+policy:
+  allow_implicit_invocation: false
