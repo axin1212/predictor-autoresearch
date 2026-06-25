@@ -30,6 +30,14 @@ class FakePredictor:
         return np.full(len(x), self.mean_)
 
 
+class RecordingPredictor(FakePredictor):
+    fit_shapes: list[tuple[int, int]] = []
+
+    def fit(self, x, y):
+        self.fit_shapes.append(x.shape)
+        return super().fit(x, y)
+
+
 def test_run_candidate_holdout_returns_metrics_and_predictions():
     rows = 30
     frame = pd.DataFrame(
@@ -107,3 +115,44 @@ def test_identity_feature_mode_uses_existing_columns_without_window_builder():
 
     assert result.status == "ok"
     assert result.selected_features
+
+
+def test_t0_identity_mode_excludes_target_feature_to_avoid_self_leakage():
+    RecordingPredictor.fit_shapes = []
+    rows = 30
+    frame = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=rows, freq="min"),
+            "target": np.arange(rows, dtype=float),
+            "x": np.arange(rows, dtype=float) * 10,
+        }
+    )
+    holdout = HoldoutInterval(
+        name="h1",
+        start_time=frame.loc[20, "timestamp"],
+        end_time=frame.loc[24, "timestamp"],
+        label_indices=[20, 21, 22, 23, 24],
+    )
+    config = CandidateConfig(
+        candidate_id="identity_h+0",
+        window_minutes=30,
+        context_policy="uniform",
+        horizon_step=0,
+        num_train_samples=5,
+        feature_mode="identity",
+    )
+
+    result = run_candidate_holdout(
+        frame,
+        ColumnContract("timestamp", "target", ["target", "x"]),
+        holdout,
+        config,
+        FailingFdeBuilder(),
+        predictor_factory=RecordingPredictor,
+    )
+
+    assert result.status == "ok"
+    assert result.horizon_step == 0
+    assert result.actual.shape == (5,)
+    assert "target" not in result.selected_features
+    assert RecordingPredictor.fit_shapes[-1][1] == 1

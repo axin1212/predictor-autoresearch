@@ -154,19 +154,29 @@ def _build_features(
     config: CandidateConfig,
     fde_builder: FdeFeatureBuilder,
 ) -> pd.DataFrame:
+    feature_columns = _feature_columns_for_horizon(columns, config)
     if config.feature_mode == "identity":
-        return target_rows[columns.feature_columns].reset_index(drop=True)
+        return target_rows[feature_columns].reset_index(drop=True)
     if config.feature_mode != "trend":
         raise ValueError(f"unsupported feature_mode: {config.feature_mode}")
     request = WindowFeatureRequest(
         data=df,
         time_column=columns.time_column,
-        feature_columns=columns.feature_columns,
+        feature_columns=feature_columns,
         target_times=pd.to_datetime(target_rows[columns.time_column]).to_numpy(),
         window_minutes=config.window_minutes,
         include_frequency=config.include_frequency,
     )
     return build_window_feature_pool(request, fde_builder).features
+
+
+def _feature_columns_for_horizon(columns: ColumnContract, config: CandidateConfig) -> list[str]:
+    if config.horizon_step != 0:
+        return columns.feature_columns
+    feature_columns = [column for column in columns.feature_columns if column != columns.target_column]
+    if not feature_columns:
+        raise ValueError("t+0 predictor reference cannot use the target column as an input feature")
+    return feature_columns
 
 
 def _prediction_array(raw_predictions: object) -> np.ndarray:
@@ -207,8 +217,8 @@ def _aligned_forecast_pairs(
     columns: ColumnContract,
     horizon_step: int,
 ) -> pd.DataFrame:
-    if horizon_step <= 0:
-        raise ValueError("horizon_step must be positive for predictor AutoResearch")
+    if horizon_step < 0:
+        raise ValueError("horizon_step must be non-negative for predictor AutoResearch")
     work = df.reset_index(drop=False)
     original_index_column = str(work.columns[0])
     target = pd.to_numeric(work[columns.target_column], errors="coerce")

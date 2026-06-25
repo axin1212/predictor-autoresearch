@@ -185,11 +185,11 @@ def _with_horizon(candidate: CandidateConfig, horizon_step: int, suffix_id: bool
 
 
 def _prediction_horizons(config: SearchConfig) -> tuple[int, ...]:
-    values = tuple(sorted(set(config.prediction_horizons)))
+    values = tuple(sorted(set(config.prediction_horizons) | {0}))
     if not values:
         raise ValueError("prediction_horizons cannot be empty")
-    if any(value <= 0 for value in values):
-        raise ValueError("prediction_horizons must be positive")
+    if any(value < 0 for value in values):
+        raise ValueError("prediction_horizons must be non-negative")
     return values
 
 

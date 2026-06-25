@@ -1,6 +1,6 @@
 ---
 name: predictor-autoresearch
-description: Run local offline future-prediction AutoResearch with FDE TabPFN3, configurable horizons such as t+3/t+10/t+30, low-risk identity/trend/window/coverage features, RMSE-improvement candidate ranking versus a train-mean baseline, and an interactive Plotly report. Use when the user explicitly names $predictor-autoresearch or asks to compare future prediction horizons for lag/dead-time analysis.
+description: Run local offline future-prediction AutoResearch with FDE TabPFN3, horizon comparisons that must include t+0, RMSE-improvement ranking versus a train-mean baseline, and an interactive Plotly report. Use when the user explicitly names $predictor-autoresearch or asks to compare prediction horizons for lag/dead-time analysis.
 ---
 
 # Predictor AutoResearch
@@ -14,8 +14,9 @@ Required user inputs:
 Scope:
 - This skill is for future prediction: features available at anchor time `t` predict the target at `t+n`.
 - Use it to compare prediction horizons and judge whether a target has actionable lag/dead-time behavior.
+- Always include `t+0` in every run as the required current-point reference for the horizon curve, even when the user only lists future horizons.
 - Do not use this skill for same-time soft sensing (`t0`). Use `soft-sensor-autoresearch` for current-point soft sensor tasks.
-- The target column is allowed to remain in the feature set, because the current/historical target can be a valid autoregressive input for future prediction.
+- The target column is allowed to remain in the feature set for `t+n` (`n>0`), because current/historical target values can be valid autoregressive inputs for future prediction. For `t+0`, the target column must be excluded from model inputs to avoid self-leakage.
 
 Before running, check local FDE/model availability. Do not silently fall back to XGBoost if the requested FDE model is unavailable.
 
@@ -35,7 +36,7 @@ Useful options:
 - `--top-features-n <n>` controls how many ranked features enter the model; default is 32.
 - `--validation-fraction <fraction>` controls the total target-label fraction held out across robust windows; default is `0.30`.
 - `--window-steps <steps>` sets the historical feature window in sample steps; default is `90`, following FDE predictor guidance.
-- `--prediction-horizons <list>` sets future steps to search, for example `3,5,8,10,20` or `10:30`. Values are positive integer sample steps.
+- `--prediction-horizons <list>` sets steps to search, for example `3,5,8,10,20` or `0:10`. Values are non-negative integer sample steps. `t+0` is always added automatically if omitted.
 - `--model-type <tabpfn3|tpt>` selects the FDE model path. Default is `tabpfn3`.
 - `--tabpfn-device <cpu|auto|mps|cuda>` controls TabPFN device; default is `auto`, preferring MPS when PyTorch reports it is available. On Apple Silicon, `auto` fails fast when PyTorch is built with MPS but the runtime cannot see Metal devices; pass `cpu` explicitly only when CPU fallback is intended.
 - `--tabpfn-fit-mode <mode>` controls TabPFN preprocessing/cache mode; default is `fit_preprocessors` for stable local MPS validation.
@@ -80,7 +81,7 @@ The naive baseline predicts the holdout target using the training-label mean for
 
 Report expectations:
 - The report starts with the target tag and run parameters: model type, horizons, window size, sampling interval, ICL/train sample count, top features, and validation fraction.
-- The top chart shows best RMSE improvement by prediction horizon.
+- The top chart shows best RMSE improvement by prediction horizon and must include `t+0`.
 - The candidate table is sorted by mean RMSE improvement percentage.
 - Actual-vs-predicted plots include a 45-degree reference line and concise subplot titles to avoid overlap.
 

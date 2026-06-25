@@ -26,3 +26,9 @@ def test_zero_time_budget_stays_unlimited():
     assert cli._time_budget_seconds(0) == 0
     assert cli._time_budget_seconds(0.0) == 0
     assert cli._time_budget_seconds(0.5) == 30.0
+
+
+def test_prediction_horizons_always_include_t0():
+    assert cli._parse_prediction_horizons("3,5") == (0, 3, 5)
+    assert cli._parse_prediction_horizons("0,3") == (0, 3)
+    assert cli._parse_prediction_horizons("0:2") == (0, 1, 2)

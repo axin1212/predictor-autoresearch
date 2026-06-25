@@ -37,7 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--top-features-n", type=int, default=32)
     parser.add_argument("--validation-fraction", type=float, default=0.30)
     parser.add_argument("--window-steps", type=int, default=90)
-    parser.add_argument("--prediction-horizons", type=_parse_prediction_horizons, default=(1, 3, 5, 10))
+    parser.add_argument("--prediction-horizons", type=_parse_prediction_horizons, default=(0, 1, 3, 5, 10))
     parser.add_argument("--model-type", choices=("tabpfn3", "tpt"), default="tabpfn3")
     parser.add_argument("--tabpfn-device", default="auto")
     parser.add_argument("--tabpfn-fit-mode", default="fit_preprocessors")
@@ -93,7 +93,7 @@ def run_autoresearch(
     top_features_n: int = 32,
     validation_fraction: float = 0.30,
     window_steps: int = 90,
-    prediction_horizons: tuple[int, ...] = (1, 3, 5, 10),
+    prediction_horizons: tuple[int, ...] = (0, 1, 3, 5, 10),
     model_type: str = "tabpfn3",
     tabpfn_device: str = "auto",
     tabpfn_fit_mode: str = "fit_preprocessors",
@@ -112,6 +112,7 @@ def run_autoresearch(
 ) -> Path:
     df = load_dataset(data_file)
     columns = infer_columns(df, target_column)
+    prediction_horizons = _include_t0_horizon(prediction_horizons)
     sampling_minutes = _infer_sampling_minutes(df, columns.time_column)
     resolved_window_minutes = max(1, int(round(window_steps * sampling_minutes)))
     resolved_fde = find_fde_root(data_file.parent, explicit=fde_root)
@@ -239,9 +240,13 @@ def _parse_prediction_horizons(value: str) -> tuple[int, ...]:
             horizons.update(range(start, end + 1))
         else:
             horizons.add(int(part))
-    if any(horizon <= 0 for horizon in horizons):
-        raise argparse.ArgumentTypeError("prediction horizons must be positive")
-    return tuple(sorted(horizons))
+    if any(horizon < 0 for horizon in horizons):
+        raise argparse.ArgumentTypeError("prediction horizons must be non-negative")
+    return _include_t0_horizon(tuple(horizons))
+
+
+def _include_t0_horizon(horizons: tuple[int, ...]) -> tuple[int, ...]:
+    return tuple(sorted(set(horizons) | {0}))
 
 
 def _run_metadata(
