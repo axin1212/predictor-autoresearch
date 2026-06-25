@@ -81,7 +81,7 @@ The naive baseline predicts the holdout target using the training-label mean for
 
 Report expectations:
 - The report starts with the target tag and run parameters: model type, horizons, window size, sampling interval, ICL/train sample count, top features, and validation fraction.
-- The top chart shows best RMSE improvement by prediction horizon and must include `t+0`.
+- The top charts show best RMSE improvement and best mean R² by prediction horizon; both must include `t+0`.
 - The candidate table is sorted by mean RMSE improvement percentage.
 - Actual-vs-predicted plots include a 45-degree reference line and concise subplot titles to avoid overlap.
 

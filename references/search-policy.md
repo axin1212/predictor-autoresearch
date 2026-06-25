@@ -37,7 +37,7 @@ Do not subtract stability, floor, or missing-window penalties from the ranking s
 HTML report:
 
 - Sort by mean RMSE improvement percentage.
-- Show best RMSE improvement percentage by prediction horizon, including `t+0`.
+- Show best RMSE improvement percentage and best mean R² by prediction horizon, including `t+0`.
 - Show actual values on x-axis and predictions on y-axis.
 - Draw a 45-degree reference line in every subplot.
 - Display each subplot's prediction horizon and RMSE improvement in the title.

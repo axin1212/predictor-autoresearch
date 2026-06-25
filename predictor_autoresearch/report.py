@@ -80,7 +80,7 @@ def write_report(path: Path, state: ReportState, top_n: int = 20) -> Path:
         showlegend=False,
         title_text="Predictor AutoResearch",
     )
-    horizon_body = _horizon_summary_chart(ranked)
+    horizon_body = _horizon_summary_charts(ranked)
     body = fig.to_html(full_html=False, include_plotlyjs=False if horizon_body else "cdn")
     index = _candidate_index(ranked)
     metadata = _metadata_block(state.metadata)
@@ -107,6 +107,7 @@ def _candidate_index(candidates: list[CandidateReport]) -> str:
             f"<td>#{rank}</td>"
             f"<td>{html.escape(candidate.candidate_id)}</td>"
             f"<td>{html.escape(horizon)}</td>"
+            f"<td>{_format_float(_mean_r2(candidate), digits=3)}</td>"
             f"<td>{_format_float(candidate.score, digits=2)}</td>"
             f"<td>{html.escape(candidate.status)}</td>"
             f"<td>{detail}</td>"
@@ -115,7 +116,8 @@ def _candidate_index(candidates: list[CandidateReport]) -> str:
         )
     return (
         "<table class='candidate-index'><thead><tr><th>Rank</th><th>Candidate</th><th>Horizon</th>"
-        "<th>Mean RMSE Improvement (%)</th><th>Status</th><th>Metrics / Error</th><th>Selected Features</th>"
+        "<th>Mean R²</th><th>Mean RMSE Improvement (%)</th>"
+        "<th>Status</th><th>Metrics / Error</th><th>Selected Features</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
@@ -189,13 +191,47 @@ def _subplot_titles(candidates: list[CandidateReport], holdout_count: int) -> li
     return titles
 
 
-def _horizon_summary_chart(candidates: list[CandidateReport]) -> str:
+def _horizon_summary_charts(candidates: list[CandidateReport]) -> str:
+    improvement_chart = _horizon_summary_chart(
+        candidates,
+        title="Best RMSE Improvement by Prediction Horizon",
+        yaxis_title="Best RMSE improvement (%)",
+        hover_metric="best improvement",
+        metric_formatter=".2f",
+        metric_suffix="%",
+        metric_fn=_mean_improvement,
+        include_plotlyjs="cdn",
+    )
+    r2_chart = _horizon_summary_chart(
+        candidates,
+        title="Best R² by Prediction Horizon",
+        yaxis_title="Best mean R²",
+        hover_metric="best mean R²",
+        metric_formatter=".3f",
+        metric_suffix="",
+        metric_fn=_mean_r2,
+        include_plotlyjs=False if improvement_chart else "cdn",
+    )
+    return improvement_chart + r2_chart
+
+
+def _horizon_summary_chart(
+    candidates: list[CandidateReport],
+    *,
+    title: str,
+    yaxis_title: str,
+    hover_metric: str,
+    metric_formatter: str,
+    metric_suffix: str,
+    metric_fn,
+    include_plotlyjs: bool | str,
+) -> str:
     best_by_horizon: dict[int, tuple[float, str]] = {}
     for candidate in candidates:
         horizon = _candidate_horizon(candidate)
         if horizon is None:
             continue
-        score = _mean_improvement(candidate)
+        score = metric_fn(candidate)
         if not np.isfinite(score):
             continue
         if horizon not in best_by_horizon or score > best_by_horizon[horizon][0]:
@@ -212,19 +248,23 @@ def _horizon_summary_chart(candidates: list[CandidateReport]) -> str:
             y=scores,
             mode="lines+markers",
             text=names,
-            hovertemplate="h=t+%{x}<br>best improvement=%{y:.2f}%<br>%{text}<extra></extra>",
+            hovertemplate=(
+                f"h=t+%{{x}}<br>{hover_metric}=%{{y:{metric_formatter}}}{metric_suffix}"
+                "<br>%{text}<extra></extra>"
+            ),
         )
     )
-    fig.add_hline(y=0, line_dash="dash", line_color="#7b8794")
+    if metric_suffix == "%":
+        fig.add_hline(y=0, line_dash="dash", line_color="#7b8794")
     fig.update_layout(
-        title_text="Best RMSE Improvement by Prediction Horizon",
+        title_text=title,
         xaxis_title="Prediction horizon (steps)",
-        yaxis_title="Best RMSE improvement (%)",
+        yaxis_title=yaxis_title,
         height=360,
         margin={"t": 70, "b": 65, "l": 70, "r": 30},
         showlegend=False,
     )
-    return fig.to_html(full_html=False, include_plotlyjs="cdn")
+    return fig.to_html(full_html=False, include_plotlyjs=include_plotlyjs)
 
 
 def _metadata_block(metadata: dict[str, str]) -> str:
@@ -255,6 +295,13 @@ def _mean_improvement(candidate: CandidateReport) -> float:
         for holdout in candidate.holdouts
         if np.isfinite(holdout.rmse_improvement_pct)
     ]
+    if not values:
+        return float("nan")
+    return float(np.mean(values))
+
+
+def _mean_r2(candidate: CandidateReport) -> float:
+    values = [holdout.r2 for holdout in candidate.holdouts if np.isfinite(holdout.r2)]
     if not values:
         return float("nan")
     return float(np.mean(values))
@@ -311,10 +358,14 @@ body {
 }
 .candidate-index th:nth-child(4),
 .candidate-index td:nth-child(4) {
-  width: 120px;
+  width: 82px;
 }
 .candidate-index th:nth-child(5),
 .candidate-index td:nth-child(5) {
+  width: 120px;
+}
+.candidate-index th:nth-child(6),
+.candidate-index td:nth-child(6) {
   width: 86px;
 }
 .metadata-grid {

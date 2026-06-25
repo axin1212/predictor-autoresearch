@@ -58,7 +58,10 @@ def test_write_report_contains_core_elements(tmp_path):
     assert "Target tag" in html
     assert "target" in html
     assert "Best RMSE Improvement by Prediction Horizon" in html
+    assert "Best R\\u00b2 by Prediction Horizon" in html
     assert "Mean RMSE Improvement (%)" in html
+    assert "Mean R²" in html
+    assert "0.980" in html
     assert "RMSE improvement=50.00%" in html
     assert "R²" in html
     assert "RMSE=0.1000" in html
